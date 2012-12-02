@@ -150,7 +150,6 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr_stor
 	char s[INET6_ADDRSTRLEN];
 	bool fileOpened = false;
 	string file_name ="";
-	//size_t currentPacketToSend = 0;
 	int sequenceNum;
 	string buf_str;
 	vector<string> packet_vector;
@@ -206,8 +205,7 @@ string temp;
 				sequenceNum = 0;
 
 			cout << "sequenceNum: " << sequenceNum << endl;
-			//cout << "Current Packet To Send: " << currentPacketToSend << endl;
-
+			
 
 			//If the sequence number on the packet received is NOT equal to currentPacketToSend+1
 			
@@ -239,10 +237,6 @@ string temp;
 				perror("Send Failed!");
 				exit(1);
 			}
-
-			//currentPacketToSend++;
-			
-			//currentPacketToSend = sequenceNum+1;
 		}	
 	}
 }

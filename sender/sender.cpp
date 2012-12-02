@@ -63,7 +63,7 @@ vector<string> extractFileToVector(char* buf, size_t bytesRead)
     char* buffer;
     char* buffer2;
     string buffer_str;
-    size_t desiredPacketSize = 250;
+    size_t desiredPacketSize = 1000;
     size_t bytesRead2;
     int lastPacket = 0;
     vector<string> packet_vector;
@@ -86,10 +86,10 @@ int totalRead=0;
         //Read Data
 
         bytesRead = fread(buffer, 1, desiredPacketSize, fp);
-        totalRead +=bytesRead;
+        totalRead += bytesRead;
         if(bytesRead == 0)
         {
-cout << "Stopped..." << endl;
+        cout << "Stopped..." << endl;
             fclose(fp);
             break;
         }
@@ -107,19 +107,19 @@ cout << "Bytes Read: " << bytesRead << endl;
                 buffer_str += buffer[i];
 
         } else                    //regular packets
-        {    
+        {
             buffer_str = buffer;
             bytesRead2 = fread(buffer2, 1, 1, fp);
             if (bytesRead2 == 0)
                 lastPacket = 1;
-            else 
+            else
                 fseek(fp, -1,  SEEK_CUR);
         }
 
         //buffer_str = {payload|%|%|sequenceNum|%|%|lastPacket'\0'}
         buffer_str += "|%|%|";
         buffer_str += intToString(sequenceNum);
-        buffer_str += "|%|%|";;
+        buffer_str += "|%|%|";
         buffer_str += intToString(lastPacket);
         buffer_str += '\0';
 
@@ -164,15 +164,15 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr_stor
             perror("select failed");
             return;
         }
+
+        //If the call to select() timed out...
         if (result == 0)
         {
             addr_len = sizeof(their_addr);
-            // timer expires
-             cout << "TIME OUT!" << endl;
+            cout << "TIME OUT!" << endl;
             time_t t = time(0);  // t is an integer type
                 cout << "Current Time: " << t << endl;
     
-            cout << fileOpened << endl;
             if(fileOpened)
             {
 
@@ -180,11 +180,11 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr_stor
                 if(sequenceNum > packet_vector.size()-1)
                     break;
 
-                packetSize =strlen(packet_vector[sequenceNum].c_str());
-            
+                packetSize = strlen(packet_vector[sequenceNum].c_str());
+
                 if((numbytes=
-                    sendto(sockfd, packet_vector[sequenceNum].c_str(), 
-                        packetSize, 0, (struct sockaddr *)&their_addr, addr_len)) < 0) 
+                    sendto(sockfd, packet_vector[sequenceNum].c_str(),
+                           packetSize, 0, (struct sockaddr *)&their_addr, addr_len)) < 0) 
                 {
                     perror("Send Failed!");
                     exit(1);

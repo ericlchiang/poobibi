@@ -52,6 +52,7 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr **ai
 	char* deliminator = new char[5];
 	strcpy(deliminator, "|%|%|");
 	int deliminatorLen = strlen(deliminator);
+int temp;
 
 	while(true)
 	{
@@ -75,67 +76,83 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr **ai
 		} 
 
 		if (FD_ISSET(sockfd, &rset)) 
-		{ 		
-			bzero(buf, MAXBUFLEN);
-			//=======================//
-			//Receives from the server
-			//=======================//
+		{ 	
+			temp = ((int)rand() % 100);
 			
-			ai_addrlen = sizeof(*ai_addr);
-			if ((numbytes = 
-				recvfrom(sockfd, buf, MAXBUFLEN-1, 0, 
-					 *ai_addr, 
-					 (socklen_t *) &(ai_addrlen) ) ) < 0) 
-			{
-				perror("Failed to receive from server");
-				exit(1);
+	cout << "hello!!!" << temp << endl;
+			
+			if(temp < Plost)
+			{	
+				//if we decide to drop our out going ACK packet, we'll still need to pretend to read from serversock 
+				//to get rid of the incoming data
+				numbytes = 
+					recvfrom(sockfd, buf, MAXBUFLEN-1, 0, 
+						 *ai_addr, 
+						 (socklen_t *) &(ai_addrlen) );
 			}
-			buf_str = buf;
-			firstDelimPos = buf_str.find(deliminator, 0, deliminatorLen);
-			secondDelimPos = buf_str.find(deliminator, firstDelimPos+5, deliminatorLen);
-			payload = buf_str.substr(0, firstDelimPos);
-			sequenceNum = buf_str.substr(firstDelimPos+5, secondDelimPos-firstDelimPos-5);
-			lastPacket = buf_str.substr(secondDelimPos+5, 1);
-
-			cout << "payload: " << payload << endl << endl;
-			cout << "Sequence Num: " << sequenceNum << endl << endl;
-			cout << "Last packet? " << lastPacket << endl;
-
-
-			outfile << payload;
+			else
+			{
+				bzero(buf, MAXBUFLEN);
+				//=======================//
+				//Receives from the server
+				//=======================//
 			
-			if(atoi(lastPacket.c_str()) == 1)
-				outfile.close();
+				ai_addrlen = sizeof(*ai_addr);
+				if ((numbytes = 
+					recvfrom(sockfd, buf, MAXBUFLEN-1, 0, 
+						 *ai_addr, 
+						 (socklen_t *) &(ai_addrlen) ) ) < 0) 
+				{
+					perror("Failed to receive from server");
+					exit(1);
+				}
+				buf_str = buf;
+				firstDelimPos = buf_str.find(deliminator, 0, deliminatorLen);
+				secondDelimPos = buf_str.find(deliminator, firstDelimPos+5, deliminatorLen);
+				payload = buf_str.substr(0, firstDelimPos);
+				sequenceNum = buf_str.substr(firstDelimPos+5, secondDelimPos-firstDelimPos-5);
+				lastPacket = buf_str.substr(secondDelimPos+5, 1);
 
-			//cout << "delim Length: " <<  deliminatorLen << endl;
-			//cout << "first: " <<  firstDelimPos << endl;
-			//cout << "second: " << secondDelimPos << endl;
+				cout << "payload: " << payload << endl << endl;
+				cout << "Sequence Num: " << sequenceNum << endl << endl;
+				cout << "Last packet? " << lastPacket << endl;
 
 
-			//cout << "IT IS: " << buf_str << endl;
+				outfile << payload;
+			
+				if(atoi(lastPacket.c_str()) == 1)
+					outfile.close();
+
+				//cout << "delim Length: " <<  deliminatorLen << endl;
+				//cout << "first: " <<  firstDelimPos << endl;
+				//cout << "second: " << secondDelimPos << endl;
+
+
+				//cout << "IT IS: " << buf_str << endl;
 	
-			//=======================//
-			//Sends ACK to server
-			//=======================//
+				//=======================//
+				//Sends ACK to server
+				//=======================//
 
-			ACKMessage = "ACK|" ;
-			ACKMessage += sequenceNum;
-			//packetSize = strlen(ACKMessage.c_str());
+				ACKMessage = "ACK|" ;
+				ACKMessage += sequenceNum;
+				//packetSize = strlen(ACKMessage.c_str());
 			
 
-cout << "Buff string is: " << buf_str << endl;
-cout << "ACK Message is: " << ACKMessage << endl;
+	cout << "Buff string is: " << buf_str << endl;
+	cout << "ACK Message is: " << ACKMessage << endl;
 
-cout << "Sendto Info: " <<  (struct sockaddr *)ai_addr << endl;
-cout <<(socklen_t) ai_addrlen<< endl;
-cout << sockfd << endl;
+	cout << "Sendto Info: " <<  (struct sockaddr *)ai_addr << endl;
+	cout <<(socklen_t) ai_addrlen<< endl;
+	cout << sockfd << endl;
 
-			if ((numbytes = sendto(sockfd, ACKMessage.c_str(), strlen(ACKMessage.c_str()), 0, *ai_addr,
-					       ai_addrlen)) == -1) 
-			{
-				perror("Failed to send to server");
-				exit(1);
-			}
+				if ((numbytes = sendto(sockfd, ACKMessage.c_str(), strlen(ACKMessage.c_str()), 0, *ai_addr,
+						       ai_addrlen)) == -1) 
+				{
+					perror("Failed to send to server");
+					exit(1);
+				}
+			}			
 	
 		}
 

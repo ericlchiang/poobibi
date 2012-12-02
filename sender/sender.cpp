@@ -105,7 +105,6 @@ cout << "Bytes Read: " << bytesRead << endl;
 		
 			for(size_t i = 0; i < bytesRead; i++)
 				buffer_str += buffer[i];
-//cout << buffer_str << endl;
 
 		} else					//regular packets
 		{	
@@ -117,15 +116,13 @@ cout << "Bytes Read: " << bytesRead << endl;
 				fseek(fp, -1,  SEEK_CUR);
 		}
 
-		//buffer_str = {payload|sequenceNum|lastPacket'\0'}
+		//buffer_str = {payload|%|%|sequenceNum|%|%|lastPacket'\0'}
 		buffer_str += "|%|%|";
 		buffer_str += intToString(sequenceNum);
 		buffer_str += "|%|%|";;
 		buffer_str += intToString(lastPacket);
 		buffer_str += '\0';
 
-	//printf("%s\n", buffer_str.c_str());
-	
 		packet_vector.push_back(buffer_str);
 		
 		sequenceNum++;
@@ -150,10 +147,9 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr_stor
 	char s[INET6_ADDRSTRLEN];
 	bool fileOpened = false;
 	string file_name ="";
-	int sequenceNum;
+	int sequenceNum = 0;
 	string buf_str;
 	vector<string> packet_vector;
-string temp;
 
 	while(true)
 	{
@@ -170,9 +166,33 @@ string temp;
 		}
 		if (result == 0)
 		{
+			addr_len = sizeof(their_addr);
 			// timer expires
-	 		perror("Timer Expired OTL");
-			//TODO: cout << TIMESTAMP()
+	 		cout << "TIME OUT!" << endl;
+			time_t t = time(0);  // t is an integer type
+    			cout << "Current Time: " << t << endl;
+    
+			cout << fileOpened << endl;
+			if(fileOpened)
+			{
+
+				//Break if we have finished transmitting
+				if(sequenceNum > packet_vector.size()-1)
+					break;
+
+				packetSize =strlen(packet_vector[sequenceNum].c_str());
+			
+				if((numbytes=
+					sendto(sockfd, packet_vector[sequenceNum].c_str(), 
+						packetSize, 0, (struct sockaddr *)&their_addr, addr_len)) < 0) 
+				{
+					perror("Send Failed!");
+					exit(1);
+				}
+				cout << "Retransmitting packet " << sequenceNum << endl;
+			}
+			else
+				cout << "File not opened yet." << endl;
 		} 
 
 		if (FD_ISSET(sockfd, &rset)) //If sockfd is ready
@@ -204,7 +224,6 @@ string temp;
 			else
 				sequenceNum = 0;
 
-			cout << "sequenceNum: " << sequenceNum << endl;
 			
 
 			//If the sequence number on the packet received is NOT equal to currentPacketToSend+1

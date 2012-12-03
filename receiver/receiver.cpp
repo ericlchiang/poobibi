@@ -44,7 +44,8 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr **ai
     string sequenceNum;
     string lastPacket;
     string payload;
-    size_t firstDelimPos, secondDelimPos;
+    char* charPayload;
+    size_t firstDelimPos, secondDelimPos, thirdDelimPos;
     size_t ai_addrlen;
     struct timeval timeout;
     string buf_str;
@@ -52,7 +53,10 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr **ai
     char* deliminator = new char[5];
     strcpy(deliminator, "|%|%|");
     int deliminatorLen = strlen(deliminator);
-
+    size_t tracker1 = 1999;
+    size_t tracker2 = 0;
+    
+    
     while(true)
     {
         //Initialize file_descriptors
@@ -119,20 +123,39 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr **ai
                 perror("Failed to receive from server");
                 exit(1);
             }
-            buf_str = buf;
-            firstDelimPos = buf_str.find(deliminator, 0, deliminatorLen);
-            secondDelimPos = buf_str.find(deliminator, firstDelimPos+5, deliminatorLen);
-            payload = buf_str.substr(0, firstDelimPos);
-            sequenceNum = buf_str.substr(firstDelimPos+5, secondDelimPos-firstDelimPos-5);
-            lastPacket = buf_str.substr(secondDelimPos+5, 1);
+            tracker1 = 1999;
+            tracker2 = 0;
+            sequenceNum = "";
+            cout << "starting byte parsing" << endl;
+            while(buf[tracker1] != '|')
+                tracker1--;
+            cout << "out of first loop: " << tracker1 << endl;
+            tracker1--;
+            lastPacket = buf[tracker1];
+            tracker1--;
+            tracker1--;
 
-            //cout << "payload: " << payload << endl << endl;
+            while(buf[tracker1] != '|')
+            {
+                sequenceNum = buf[tracker1] + sequenceNum;
+                tracker1--;
+            }
+            cout << "out of second loop" << endl;
+
+            charPayload = new char[1000];
+            while(tracker2 < tracker1)
+            {
+                charPayload[tracker2] = buf[tracker2];
+                tracker2++;
+            }
+            charPayload[tracker2] = '\0';
+
+            cout << "payload: " << charPayload << endl << endl;
             cout << "Sequence Num: " << sequenceNum << endl << endl;
             cout << "Last packet? " << lastPacket << endl;
 
-
-            outfile << payload;
-        
+            outfile << charPayload;
+            delete[] charPayload;
             if(atoi(lastPacket.c_str()) == 1)
                 outfile.close();
 
@@ -152,7 +175,7 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr **ai
             //packetSize = strlen(ACKMessage.c_str());
         
 
-//cout << "Buff string is: " << buf_str << endl;
+cout << "Buff string is: " << buf_str << endl;
 cout << "ACK Message is: " << ACKMessage << endl;
 
 cout << "Sendto Info: " <<  (struct sockaddr *)ai_addr << endl;
@@ -180,7 +203,7 @@ int main(int argc, char *argv[])
     int numbytes;
     int serverPort;        //clients connect to this server port
         char ipstr[INET6_ADDRSTRLEN];
-    int const MAXBUFLEN = 5000;
+    int const MAXBUFLEN = 2000;
     char buf[MAXBUFLEN];
     int Plost, Pcorrupt;
     ofstream outfile;

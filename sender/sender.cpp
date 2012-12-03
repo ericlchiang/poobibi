@@ -54,84 +54,106 @@ string intToString(int num)
     return ss.str();
 }
 
-vector<string> extractFileToVector(char* buf, size_t bytesRead)
+void formatPacket(char* packet, size_t currentSize, int sequenceNumber, int lastPacket)
 {
+    char* buf;
+    size_t counter = 0;
 
-    FILE *fp;
-    int length;
-    int sequenceNum = 0;
-    char* buffer;
-    char* buffer2;
-    string buffer_str;
-    size_t desiredPacketSize = 1000;
-    size_t bytesRead2;
-    int lastPacket = 0;
-    vector<string> packet_vector;
-int totalRead=0;
+    packet[currentSize] = '|';
+    currentSize++;
 
-    fp = fopen(buf, "rb");
-    // obtain file size:
-    fseek(fp, 0, SEEK_END);
-    length = ftell(fp)+1;
-    rewind(fp);
+    buf = new char(50);
+    sprintf(buf, "%d", sequenceNumber);
 
-    while(1)
+    while (buf[counter] != '\0')
     {
-        //Just make a buffer that's big enough
-        buffer = new char[2000];
-        buffer2 = new char[5];
-        bzero(buffer, 2000);
-
-        if(buffer == NULL) {fputs("Memory error",stderr); exit (2);}
-        //Read Data
-
-        bytesRead = fread(buffer, 1, desiredPacketSize, fp);
-        totalRead += bytesRead;
-        if(bytesRead == 0)
-        {
-        cout << "Stopped..." << endl;
-            fclose(fp);
-            break;
-        }
-        //convert char* to string for easy manipulation
-
-cout << "Desired Bytes: " << desiredPacketSize << endl;
-//cout << buffer << endl;
-cout << "Bytes Read: " << bytesRead << endl;
-        if(bytesRead != desiredPacketSize )    //Last packet
-        {
-            cout << "Last Packet!!!!" << endl;
-            lastPacket = 1;
-        
-            for(size_t i = 0; i < bytesRead; i++)
-                buffer_str += buffer[i];
-
-        } else                    //regular packets
-        {
-            buffer_str = buffer;
-            bytesRead2 = fread(buffer2, 1, 1, fp);
-            if (bytesRead2 == 0)
-                lastPacket = 1;
-            else
-                fseek(fp, -1,  SEEK_CUR);
-        }
-
-        //buffer_str = {payload|%|%|sequenceNum|%|%|lastPacket'\0'}
-        buffer_str += "|%|%|";
-        buffer_str += intToString(sequenceNum);
-        buffer_str += "|%|%|";
-        buffer_str += intToString(lastPacket);
-        buffer_str += '\0';
-
-        packet_vector.push_back(buffer_str);
-        
-        sequenceNum++;
-        buffer_str = "";
-        delete[] buffer;
-        delete[] buffer2;
+        packet[currentSize] = buf[counter];
+        currentSize++;
+        counter++;
     }
-cout << "read: " << totalRead << endl;
-    return packet_vector;
+
+    packet[currentSize] = '|';
+    currentSize++;
+
+    sprintf(buf, "%d", lastPacket);
+    packet[currentSize] = buf[0];
+    currentSize++;
+    
+    packet[currentSize] = '|';
+    currentSize++;
+    
+    packet[currentSize] = '\0';
+    currentSize++;
+}
+
+vector<char*> extractFileToVector(char* buf, size_t bytesRead)
+{
+    //pos_type to store the size of the file
+    ifstream::pos_type size;
+    //Buffer to read entire contents of file into
+    char* memblock;
+    //Vector of vectors
+    vector<char*> packetVector;
+
+    size_t totalBytesRead = 0;
+    size_t numBytesRead = 0;
+    size_t desiredPacketSize = 3;
+    int sequenceNumber = 0;
+    int lastPacket = 0;
+
+    char* packetBuffer;
+
+    //Open file stream
+    ifstream file (buf, ios::in|ios::binary|ios::ate);
+
+    //Read entire file into memblock
+    if (file.is_open())
+    {
+        size = file.tellg();
+        memblock = new char [size];
+        file.seekg (0, ios::beg);
+        file.read (memblock, size);
+        file.close();
+
+        cout << "the complete file content is in memory" << endl;
+
+        //delete[] memblock;
+    }
+    else cout << "Unable to open file";
+
+    //Read the entire file into packets, one at a time
+    while (totalBytesRead < size)
+    {
+        cout << "starting packet #" << sequenceNumber << endl;
+        packetBuffer = new char [2000];
+        memset((void*)packetBuffer, '0', 2000);
+        numBytesRead = 0;
+        //If this is the last packet
+        if (totalBytesRead + desiredPacketSize > size)
+        {
+            cout << "last packet" << endl;
+            lastPacket = 1;
+            while (numBytesRead + totalBytesRead < size)
+            {
+                packetBuffer[numBytesRead] = memblock[totalBytesRead+numBytesRead];
+                numBytesRead++;
+            }
+        } else {
+            while (numBytesRead < desiredPacketSize)
+            {
+                packetBuffer[numBytesRead] = memblock[totalBytesRead+numBytesRead];
+                numBytesRead++;
+            }
+        }
+        totalBytesRead += numBytesRead;
+        formatPacket(packetBuffer, numBytesRead, sequenceNumber, lastPacket);
+        cout << "Packet #" << sequenceNumber << " formatted!" << endl << packetBuffer << endl << endl;
+        packetVector.push_back(packetBuffer);
+        sequenceNumber++;
+    }
+    cout << "Total bytes: " << totalBytesRead << endl;
+    //delete[] memblock;
+    return packetVector;
 }
 
 void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr_storage &their_addr)
@@ -149,7 +171,7 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr_stor
     string file_name ="";
     int sequenceNum = 0;
     string buf_str;
-    vector<string> packet_vector;
+    vector<char*> packet_vector;
 
     while(true)
     {
@@ -180,10 +202,10 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr_stor
                 if(sequenceNum > packet_vector.size()-1)
                     break;
 
-                packetSize = strlen(packet_vector[sequenceNum].c_str());
+                packetSize = strlen(packet_vector[sequenceNum]);
 
                 if((numbytes=
-                    sendto(sockfd, packet_vector[sequenceNum].c_str(),
+                    sendto(sockfd, packet_vector[sequenceNum],
                            packetSize, 0, (struct sockaddr *)&their_addr, addr_len)) < 0) 
                 {
                     perror("Send Failed!");
@@ -198,7 +220,7 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr_stor
         if (FD_ISSET(sockfd, &rset)) //If sockfd is ready
         { 
             
-            cout << "listener: waiting to recvfrom..." << endl;
+            //cout << "listener: waiting to recvfrom..." << endl;
     
             addr_len = sizeof(their_addr);
             if ((numbytes = 
@@ -214,9 +236,10 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr_stor
             //     << inet_ntop(their_addr.ss_family, get_in_addr((struct sockaddr *)&their_addr), s, sizeof(s)) 
             //     << endl;
 
-            cout << "listener: packet is " << numbytes << " bytes long ";
+            //cout << "listener: packet is " << numbytes << " bytes long ";
             buf[numbytes] = '\0';
-            cout << ", contains \"" << buf << "\"" << endl;
+            //cout << ", contains \"" << buf << "\"" << endl;
+
             buf_str = buf; 
 
             if (buf_str.find("|", 0, 1) != string::npos)
@@ -224,7 +247,7 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr_stor
             else
                 sequenceNum = 0;
 
-            
+
 
             //If the sequence number on the packet received is NOT equal to currentPacketToSend+1
             
@@ -234,9 +257,7 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr_stor
             if(!fileOpened)
             {
                 fileOpened = true;
-        
                 packet_vector = extractFileToVector(buf, bytesRead);
-
             }
 
             //=======================//
@@ -247,10 +268,10 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr_stor
             if(sequenceNum > packet_vector.size()-1)
                 break;
 
-            packetSize =strlen(packet_vector[sequenceNum].c_str());
+            packetSize =strlen(packet_vector[sequenceNum]);
             
             if((numbytes=
-                sendto(sockfd, packet_vector[sequenceNum].c_str(), 
+                sendto(sockfd, packet_vector[sequenceNum], 
                     packetSize, 0, (struct sockaddr *)&their_addr, addr_len)) < 0) 
             {
                 perror("Send Failed!");

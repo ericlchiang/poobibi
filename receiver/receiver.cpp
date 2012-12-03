@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <limits.h>
 #include <errno.h>
 #include <string.h>
 #include <sys/types.h>
@@ -40,22 +41,17 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr **ai
     int const SERVER_TIME_OUT = 3;     //Timeout after 3 secondsZ
     int numbytes;
     fd_set rset;
-    int packetSize;
     string sequenceNum;
     string lastPacket;
     string payload;
     char* charPayload;
-    size_t firstDelimPos, secondDelimPos, thirdDelimPos;
     size_t ai_addrlen;
     struct timeval timeout;
     string buf_str;
     string ACKMessage;
-    char* deliminator = new char[5];
-    strcpy(deliminator, "|%|%|");
-    int deliminatorLen = strlen(deliminator);
     size_t tracker1 = 1999;
     size_t tracker2 = 0;
-    
+    int temprand1, temprand2;
     
     while(true)
     {
@@ -64,8 +60,6 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr **ai
         FD_SET(sockfd, &rset);
         timeInit(&timeout, SERVER_TIME_OUT, 0);
 
-
-        //maxfdp = max(fileno(fp), sockfd) + 1;    //For compatibility issues...
         maxfdp = sockfd + 1;    //For compatibility issues...
         if ((result = select(maxfdp, &rset, NULL, NULL, &timeout) )< 0)
         {
@@ -74,16 +68,18 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr **ai
         }
         if (result == 0)
         {
-            // timer expires
+             // timer expires
              perror("Timer Expired");
         } 
-
+        
         //If we have received a packet from the sender
         if (FD_ISSET(sockfd, &rset)) 
         {
+        temprand1 = (int)rand() % 100;
+        cout << temprand1;
             //Sender packet LOST!!
-            if((int)rand() % 100 < Plost)
-            {    
+            if(temprand1 < Plost)
+            {
                 //if we decide to drop our out going ACK packet, we'll still need to pretend to read from serversock 
                 //to get rid of the incoming data
                 numbytes = 
@@ -94,9 +90,10 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr **ai
                 //Continue to wait to receive a packet from sender.
                 continue;
             }
-
+            temprand2 = (int)rand() % 100;
+            cout << temprand2;
             //Sender packet CORRUPTED!!
-            if((int)rand() % 100 < Pcorrupt)
+            if(temprand2 < Pcorrupt)
             {    
                 //if we decide to drop our out going ACK packet, we'll still need to pretend to read from serversock 
                 //to get rid of the incoming data
@@ -126,10 +123,8 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr **ai
             tracker1 = 1999;
             tracker2 = 0;
             sequenceNum = "";
-            cout << "starting byte parsing" << endl;
             while(buf[tracker1] != '|')
                 tracker1--;
-            cout << "out of first loop: " << tracker1 << endl;
             tracker1--;
             lastPacket = buf[tracker1];
             tracker1--;
@@ -140,31 +135,18 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr **ai
                 sequenceNum = buf[tracker1] + sequenceNum;
                 tracker1--;
             }
-            cout << "out of second loop" << endl;
 
             charPayload = new char[1000];
-            while(tracker2 < tracker1)
+            while(tracker2 <= tracker1)
             {
                 charPayload[tracker2] = buf[tracker2];
                 tracker2++;
             }
-            charPayload[tracker2] = '\0';
 
-            cout << "payload: " << charPayload << endl << endl;
-            cout << "Sequence Num: " << sequenceNum << endl << endl;
-            cout << "Last packet? " << lastPacket << endl;
-
-            outfile << charPayload;
+            outfile.write(charPayload, tracker2-1);
             delete[] charPayload;
             if(atoi(lastPacket.c_str()) == 1)
                 outfile.close();
-
-            //cout << "delim Length: " <<  deliminatorLen << endl;
-            //cout << "first: " <<  firstDelimPos << endl;
-            //cout << "second: " << secondDelimPos << endl;
-
-
-            //cout << "IT IS: " << buf_str << endl;
 
             //=======================//
             //Sends ACK to server
@@ -172,15 +154,9 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr **ai
 
             ACKMessage = "ACK|" ;
             ACKMessage += sequenceNum;
-            //packetSize = strlen(ACKMessage.c_str());
         
 
-cout << "Buff string is: " << buf_str << endl;
-cout << "ACK Message is: " << ACKMessage << endl;
-
-cout << "Sendto Info: " <<  (struct sockaddr *)ai_addr << endl;
-cout <<(socklen_t) ai_addrlen<< endl;
-cout << sockfd << endl;
+            cout << "Sending ACK: " << ACKMessage << endl;
 
             if ((numbytes = sendto(sockfd, ACKMessage.c_str(), strlen(ACKMessage.c_str()), 0, *ai_addr,
                            ai_addrlen)) == -1) 
@@ -195,6 +171,7 @@ cout << sockfd << endl;
 //TODO: use recvfrom(...) with combination with select(...) to talk back and forth b/t server and client
 int main(int argc, char *argv[])
 {
+    srand(time(0));
     int sockfd;
     struct addrinfo hints;
     struct addrinfo *servinfo;
@@ -284,7 +261,7 @@ cout << sockfd << endl;
         exit(1);
     }
 
-    outfile.open(argv[3]);
+    outfile.open(argv[3], ios::out | ios::binary);
 
 
     //freeaddrinfo(servinfo);

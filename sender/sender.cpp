@@ -81,7 +81,6 @@ void formatPacket(char* packet, size_t currentSize, int sequenceNumber, int last
     
     packet[currentSize] = '|';
     currentSize++;
-    
     packet[currentSize] = '\0';
     currentSize++;
 }
@@ -97,7 +96,7 @@ vector<char*> extractFileToVector(char* buf, size_t bytesRead)
 
     size_t totalBytesRead = 0;
     size_t numBytesRead = 0;
-    size_t desiredPacketSize = 3;
+    size_t desiredPacketSize = 1000;
     int sequenceNumber = 0;
     int lastPacket = 0;
 
@@ -114,17 +113,12 @@ vector<char*> extractFileToVector(char* buf, size_t bytesRead)
         file.seekg (0, ios::beg);
         file.read (memblock, size);
         file.close();
-
-        cout << "the complete file content is in memory" << endl;
-
-        //delete[] memblock;
     }
     else cout << "Unable to open file";
 
     //Read the entire file into packets, one at a time
     while (totalBytesRead < size)
     {
-        cout << "starting packet #" << sequenceNumber << endl;
         packetBuffer = new char [2000];
         memset((void*)packetBuffer, '0', 2000);
         numBytesRead = 0;
@@ -147,12 +141,13 @@ vector<char*> extractFileToVector(char* buf, size_t bytesRead)
         }
         totalBytesRead += numBytesRead;
         formatPacket(packetBuffer, numBytesRead, sequenceNumber, lastPacket);
-        cout << "Packet #" << sequenceNumber << " formatted!" << endl << packetBuffer << endl << endl;
+
         packetVector.push_back(packetBuffer);
+        
         sequenceNumber++;
     }
     cout << "Total bytes: " << totalBytesRead << endl;
-    //delete[] memblock;
+    delete[] memblock;
     return packetVector;
 }
 
@@ -202,7 +197,7 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr_stor
                 if(sequenceNum > packet_vector.size()-1)
                     break;
 
-                packetSize = strlen(packet_vector[sequenceNum]);
+                packetSize = 2000;
 
                 if((numbytes=
                     sendto(sockfd, packet_vector[sequenceNum],
@@ -218,9 +213,7 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr_stor
         } 
 
         if (FD_ISSET(sockfd, &rset)) //If sockfd is ready
-        { 
-            
-            //cout << "listener: waiting to recvfrom..." << endl;
+        {
     
             addr_len = sizeof(their_addr);
             if ((numbytes = 
@@ -231,14 +224,7 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr_stor
                 exit(1);
             }
 
-            //converts address from byte-form to text
-            //cout << "listener: got packet from "
-            //     << inet_ntop(their_addr.ss_family, get_in_addr((struct sockaddr *)&their_addr), s, sizeof(s)) 
-            //     << endl;
-
-            //cout << "listener: packet is " << numbytes << " bytes long ";
             buf[numbytes] = '\0';
-            //cout << ", contains \"" << buf << "\"" << endl;
 
             buf_str = buf; 
 
@@ -268,7 +254,7 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr_stor
             if(sequenceNum > packet_vector.size()-1)
                 break;
 
-            packetSize =strlen(packet_vector[sequenceNum]);
+            packetSize = 2000;
             
             if((numbytes=
                 sendto(sockfd, packet_vector[sequenceNum], 

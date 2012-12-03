@@ -68,18 +68,36 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr **ai
         }
         if (result == 0)
         {
-             // timer expires
-             perror("Timer Expired");
+            
+            cout << "CLIENT TIMEOUT!" << endl;
+            cout << "Sez: " << sequenceNum << endl;
+            ACKMessage = "ACK|" ;
+            ACKMessage += sequenceNum;
+        
+            cout << "Sending ACK: " << ACKMessage << endl;
+
+            if ((numbytes = sendto(sockfd, ACKMessage.c_str(), strlen(ACKMessage.c_str()), 0, *ai_addr,
+                           ai_addrlen)) == -1) 
+            {
+                perror("Failed to send to ");
+                exit(1);
+            }
+                 
         } 
         
         //If we have received a packet from the sender
         if (FD_ISSET(sockfd, &rset)) 
         {
-        temprand1 = (int)rand() % 100;
-        cout << temprand1;
+        
+        
+        //TODO: NEED TO IMPLEMENT FINACK!!!
+        
+            temprand1 = (int)rand() % 100;
+
             //Sender packet LOST!!
             if(temprand1 < Plost)
             {
+                cout << "Sender packet LOST!!" << endl;
                 //if we decide to drop our out going ACK packet, we'll still need to pretend to read from serversock 
                 //to get rid of the incoming data
                 numbytes = 
@@ -91,10 +109,11 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr **ai
                 continue;
             }
             temprand2 = (int)rand() % 100;
-            cout << temprand2;
+            
             //Sender packet CORRUPTED!!
             if(temprand2 < Pcorrupt)
             {    
+                cout << "Sender packet CORRUPTED!!" << endl;
                 //if we decide to drop our out going ACK packet, we'll still need to pretend to read from serversock 
                 //to get rid of the incoming data
                 numbytes = 
@@ -145,9 +164,7 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr **ai
 
             outfile.write(charPayload, tracker2-1);
             delete[] charPayload;
-            if(atoi(lastPacket.c_str()) == 1)
-                outfile.close();
-
+           
             //=======================//
             //Sends ACK to server
             //=======================//
@@ -164,6 +181,14 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr **ai
                 perror("Failed to send to ");
                 exit(1);
             }
+            
+            
+            if(atoi(lastPacket.c_str()) == 1)
+            {
+                outfile.close();
+                break;
+            }
+
         }
     }
 }

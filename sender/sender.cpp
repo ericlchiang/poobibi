@@ -85,7 +85,7 @@ void formatPacket(char* packet, size_t currentSize, int sequenceNumber, int last
     currentSize++;
 }
 
-vector<char*> extractFileToVector(char* buf, size_t bytesRead)
+vector<char*> extractFileToVector(char* buf)
 {
     //pos_type to store the size of the file
     ifstream::pos_type size;
@@ -114,7 +114,8 @@ vector<char*> extractFileToVector(char* buf, size_t bytesRead)
         file.read (memblock, size);
         file.close();
     }
-    else cout << "Unable to open file";
+    else 
+        cout << "Unable to open file";
 
     //Read the entire file into packets, one at a time
     while (totalBytesRead < size)
@@ -125,7 +126,6 @@ vector<char*> extractFileToVector(char* buf, size_t bytesRead)
         //If this is the last packet
         if (totalBytesRead + desiredPacketSize > size)
         {
-            cout << "last packet" << endl;
             lastPacket = 1;
             while (numBytesRead + totalBytesRead < size)
             {
@@ -146,27 +146,26 @@ vector<char*> extractFileToVector(char* buf, size_t bytesRead)
         
         sequenceNumber++;
     }
-    cout << "Total bytes: " << totalBytesRead << endl;
+   
     delete[] memblock;
     return packetVector;
 }
 
-void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr_storage &their_addr)
+void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr_storage &their_addr, int cwnd, int Plost, int Pcorrupt)
 {
     int maxfdp, result;
     int const SERVER_TIME_OUT = 3;     //Timeout after 3 secondsZ
     int numbytes;
-    int bytesRead;
     int packetSize;
     fd_set rset;
     struct timeval timeout;
     socklen_t addr_len;
-    char s[INET6_ADDRSTRLEN];
     bool fileOpened = false;
     string file_name ="";
     int sequenceNum = 0;
     string buf_str;
     vector<char*> packet_vector;
+    int temprand1, temprand2;
 
     while(true)
     {
@@ -186,7 +185,7 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr_stor
         if (result == 0)
         {
             addr_len = sizeof(their_addr);
-            cout << "TIME OUT!" << endl;
+            cout << "SERVER TIME OUT!" << endl;
             time_t t = time(0);  // t is an integer type
                 cout << "Current Time: " << t << endl;
     
@@ -208,13 +207,37 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr_stor
                 }
                 cout << "Retransmitting packet " << sequenceNum << endl;
             }
-            else
-                cout << "File not opened yet." << endl;
         } 
 
         if (FD_ISSET(sockfd, &rset)) //If sockfd is ready
         {
     
+            temprand1 = (int)rand() % 100;
+
+            //Client's ACK packet LOST!!
+            if(temprand1 < Plost)
+            {
+                cout << "Client's ACK packet LOST!!" << endl;
+                numbytes = recvfrom(sockfd, buf, MAXBUFLEN-1 , 0,(struct sockaddr *)&their_addr, &addr_len);
+
+                //Continue to wait to receive a ACK packet from client.
+                continue;
+            }
+            temprand2 = (int)rand() % 100;
+            
+            //Sender packet CORRUPTED!!
+            if(temprand2 < Pcorrupt)
+            {    
+                cout << "Client's ACK packet CORRUPTED!!" << endl;
+                numbytes =  recvfrom(sockfd, buf, MAXBUFLEN-1 , 0,(struct sockaddr *)&their_addr, &addr_len);
+
+                //Continue to wait to receive a ACK packet from client
+                continue;
+            }
+            
+            //=======================//
+            //Receive from Client
+            //=======================//
             addr_len = sizeof(their_addr);
             if ((numbytes = 
                 recvfrom(sockfd, buf, MAXBUFLEN-1 , 0,(struct sockaddr *)&their_addr, &addr_len))
@@ -243,7 +266,7 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr_stor
             if(!fileOpened)
             {
                 fileOpened = true;
-                packet_vector = extractFileToVector(buf, bytesRead);
+                packet_vector = extractFileToVector(buf);
             }
 
             //=======================//
@@ -276,15 +299,21 @@ int main(int argc, char *argv[])
     int rv;
     struct sockaddr_storage their_addr;
     char buf[MAXBUFLEN];
-        char ipstr[INET6_ADDRSTRLEN];
+    char ipstr[INET6_ADDRSTRLEN];
+    int cwnd;
+    int Plost;
+    int Pcorrupt;
 
-    if(argc != 2)
+    if(argc != 5)
     {
-        cerr << "Wrong number of arguments. ( ./sender 4990)" << endl;
+        cerr << "Wrong number of arguments. ( ./sender 4990 5 50 0)" << endl;
         exit(1);    
     }
 
     myPort = atoi(argv[1]);
+    cwnd = atoi(argv[2]);
+    Plost = atoi(argv[3]);
+    Pcorrupt = atoi(argv[4]);
 
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_INET; // set to AF_INET to force IPv4
@@ -348,7 +377,7 @@ int main(int argc, char *argv[])
 
     freeaddrinfo(servinfo);
 
-    waitToRead(sockfd, buf, MAXBUFLEN, their_addr);
+    waitToRead(sockfd, buf, MAXBUFLEN, their_addr, cwnd, Plost, Pcorrupt);
 
     //** 
 

@@ -194,8 +194,18 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr_stor
 
                 //Break if we have finished transmitting
                 if(sequenceNum > packet_vector.size()-1)
+                {
                     break;
-
+           /*
+                if((numbytes=
+                    sendto(sockfd, packet_vector[sequenceNum], 
+                        packetSize, 0, (struct sockaddr *)&their_addr, addr_len)) < 0) 
+                {
+                    perror("Send Failed!");
+                    exit(1);
+                }
+            */
+                }
                 packetSize = 2000;
 
                 if((numbytes=
@@ -213,19 +223,18 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr_stor
         {
     
             temprand1 = (int)rand() % 100;
-
             //Client's ACK packet LOST!!
             if(temprand1 < Plost)
             {
-                cout << "Client's ACK packet LOST!!" << endl;
                 numbytes = recvfrom(sockfd, buf, MAXBUFLEN-1 , 0,(struct sockaddr *)&their_addr, &addr_len);
+                cout << "Client's ACK packet LOST!! (" << buf << ") " << endl;
 
                 //Continue to wait to receive a ACK packet from client.
                 continue;
             }
             temprand2 = (int)rand() % 100;
             
-            //Sender packet CORRUPTED!!
+            //Client's ACK packet CORRUPTED!!
             if(temprand2 < Pcorrupt)
             {    
                 cout << "Client's ACK packet CORRUPTED!!" << endl;
@@ -273,9 +282,23 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr_stor
             //Sends packet to client
             //=======================//
             
-            //Break if we have finished transmitting
+             
+            //FINACK Packet
             if(sequenceNum > packet_vector.size()-1)
+            {
+            
                 break;
+            /*
+                if((numbytes=
+                    sendto(sockfd, packet_vector[sequenceNum], 
+                        packetSize, 0, (struct sockaddr *)&their_addr, addr_len)) < 0) 
+                {
+                    perror("Send Failed!");
+                    exit(1);
+                }
+            */
+            }
+               
 
             packetSize = 2000;
             
@@ -376,7 +399,7 @@ int main(int argc, char *argv[])
     }
 
     freeaddrinfo(servinfo);
-
+cout << "Plost corrupt: " << Plost << "  " << Pcorrupt << endl;
     waitToRead(sockfd, buf, MAXBUFLEN, their_addr, cwnd, Plost, Pcorrupt);
 
     //** 

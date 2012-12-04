@@ -18,6 +18,7 @@
 #include <sys/wait.h>    
 #include <signal.h>    
 #include <vector>
+#include <fcntl.h>
 
 
 using namespace std;
@@ -163,15 +164,20 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr_stor
     bool fileOpened = false;
     string file_name ="";
     int sequenceNum = 0;
+    int currentAck = 0;
     string buf_str;
     vector<char*> packet_vector;
     int temprand1, temprand2;
+    int flags;
 
     while(true)
     {
         //Initialize file_descriptors
         FD_ZERO(&rset);
         FD_SET(sockfd, &rset);
+        flags = fcntl(sockfd, F_GETFL, 0);
+        flags |= O_NONBLOCK;
+        fcntl(sockfd, F_SETFL, flags);
         timeInit(&timeout, SERVER_TIME_OUT, 0);
 
         maxfdp = sockfd + 1;    //For compatibility issues...
@@ -196,15 +202,6 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr_stor
                 if(sequenceNum > packet_vector.size()-1)
                 {
                     break;
-           /*
-                if((numbytes=
-                    sendto(sockfd, packet_vector[sequenceNum], 
-                        packetSize, 0, (struct sockaddr *)&their_addr, addr_len)) < 0) 
-                {
-                    perror("Send Failed!");
-                    exit(1);
-                }
-            */
                 }
                 packetSize = 2000;
 
@@ -238,34 +235,46 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr_stor
             if(temprand2 < Pcorrupt)
             {    
                 cout << "Client's ACK packet CORRUPTED!!" << endl;
-                numbytes =  recvfrom(sockfd, buf, MAXBUFLEN-1 , 0,(struct sockaddr *)&their_addr, &addr_len);
+                numbytes = recvfrom(sockfd, buf, MAXBUFLEN-1 , 0,(struct sockaddr *)&their_addr, &addr_len);
 
                 //Continue to wait to receive a ACK packet from client
                 continue;
             }
-            
+
             //=======================//
             //Receive from Client
             //=======================//
             addr_len = sizeof(their_addr);
-            if ((numbytes = 
-                recvfrom(sockfd, buf, MAXBUFLEN-1 , 0,(struct sockaddr *)&their_addr, &addr_len))
-                == -1) 
+            numbytes = 1;
+            while (numbytes > 0)
             {
-                perror("recvfrom");
-                exit(1);
+                if ((numbytes = 
+                    recvfrom(sockfd, buf, MAXBUFLEN-1 , 0,(struct sockaddr *)&their_addr, &addr_len))
+                    == -1) 
+                {
+                    if (errno != EAGAIN)
+                    {
+                        perror("recvfrom");
+                        exit(1);
+                    } else
+                        break;
+                }
+
+                buf[numbytes] = '\0';
+
+                buf_str = buf;
+
+                if (buf_str.find("|", 0, 1) != string::npos)
+                    sequenceNum = atoi(buf_str.substr(buf_str.find("|", 0, 1)+1).c_str());
+                else
+                    sequenceNum = -1;
+                cout << "Received Packet from Client: \"" << buf_str << "\"" << endl;
+                if (sequenceNum >= 0)
+                {
+                    currentAck = sequenceNum;
+                    cout << "Updating currently ACKed packet counter to " << currentAck << endl;
+                }
             }
-
-            buf[numbytes] = '\0';
-
-            buf_str = buf; 
-
-            if (buf_str.find("|", 0, 1) != string::npos)
-                sequenceNum = atoi(buf_str.substr(buf_str.find("|", 0, 1)+1).c_str())+1;
-            else
-                sequenceNum = 0;
-
-
 
             //If the sequence number on the packet received is NOT equal to currentPacketToSend+1
             
@@ -284,7 +293,7 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr_stor
             
              
             //FINACK Packet
-            if(sequenceNum > packet_vector.size()-1)
+            if(currentAck+1 >= packet_vector.size())
             {
             
                 break;
@@ -301,13 +310,17 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr_stor
                
 
             packetSize = 2000;
-            
-            if((numbytes=
-                sendto(sockfd, packet_vector[sequenceNum], 
-                    packetSize, 0, (struct sockaddr *)&their_addr, addr_len)) < 0) 
+            for (int i = 0; i < cwnd && currentAck+i < packet_vector.size(); i++)
             {
-                perror("Send Failed!");
-                exit(1);
+        cout << "sending packet #" << currentAck+i << "(" << i << "/" << cwnd << " in the window)" << endl;
+                //Attempt to send packet to client
+                if((numbytes=
+                    sendto(sockfd, packet_vector[currentAck+i], 
+                        packetSize, 0, (struct sockaddr *)&their_addr, addr_len)) < 0) 
+                {
+                    perror("Send Failed!");
+                    exit(1);
+                }
             }
         }    
     }
@@ -339,9 +352,12 @@ int main(int argc, char *argv[])
     Pcorrupt = atoi(argv[4]);
 
     memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_INET; // set to AF_INET to force IPv4
-    hints.ai_socktype = SOCK_DGRAM;     //Datagram socket
-    hints.ai_flags = AI_PASSIVE; // use my IP (AI_PASSIVE  tells getaddrinfo() to assign the address of my local host to the socket structures)
+    //Force IPv4
+    hints.ai_family = AF_INET;
+    //Datagram socket
+    hints.ai_socktype = SOCK_DGRAM;
+    // use localhost IP
+    hints.ai_flags = AI_PASSIVE;
 
     if ((rv = getaddrinfo(NULL,intToString(myPort).c_str(), &hints, &servinfo)) != 0) 
     {
@@ -398,11 +414,9 @@ int main(int argc, char *argv[])
         return 2;
     }
 
-    freeaddrinfo(servinfo);
 cout << "Plost corrupt: " << Plost << "  " << Pcorrupt << endl;
     waitToRead(sockfd, buf, MAXBUFLEN, their_addr, cwnd, Plost, Pcorrupt);
-
-    //** 
+    freeaddrinfo(servinfo);
 
     close(sockfd);
     return 0;

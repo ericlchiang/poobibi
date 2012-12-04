@@ -52,13 +52,14 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr **ai
     size_t tracker1 = 1999;
     size_t tracker2 = 0;
     int temprand1, temprand2;
-    
+    size_t nextPacket  = 0;
+
     while(true)
     {
         //Initialize file_descriptors
         FD_ZERO(&rset);
         FD_SET(sockfd, &rset);
-        timeInit(&timeout, SERVER_TIME_OUT, 900);   //499 is HACK TO FIX race condition between server and client
+        timeInit(&timeout, SERVER_TIME_OUT, 900);   //999 is HACK TO FIX race condition between server and client
 
         maxfdp = sockfd + 1;    //For compatibility issues...
         if ((result = select(maxfdp, &rset, NULL, NULL, &timeout) )< 0)
@@ -70,7 +71,7 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr **ai
         {
             
             ACKMessage = "ACK|" ;
-            ACKMessage += sequenceNum;
+            ACKMessage += intToString(nextPacket-1);
         
             cout << "CLIENT TIMEOUT!" << endl;
             time_t t = time(0);  // t is an integer type
@@ -97,8 +98,8 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr **ai
         //If we have received a packet from the sender
         if (FD_ISSET(sockfd, &rset)) 
         {
-        
-        
+
+
         //TODO: NEED TO IMPLEMENT FINACK!!!
         
             temprand1 = (int)rand() % 100;
@@ -164,22 +165,29 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr **ai
                 tracker1--;
             }
 
-            charPayload = new char[1000];
-            while(tracker2 <= tracker1)
+            //If the packet sent is the next packet we are waiting for, process it
+            if (nextPacket == atoi(sequenceNum.c_str()))
             {
-                charPayload[tracker2] = buf[tracker2];
-                tracker2++;
+                charPayload = new char[1000];
+                while(tracker2 <= tracker1)
+                {
+                    charPayload[tracker2] = buf[tracker2];
+                    tracker2++;
+                }
+                outfile.write(charPayload, tracker2-1);
+                delete[] charPayload;
+                cout << "incrementing nextPacket" << endl;
+                nextPacket++;
+            } else {
+                cout << "Incorrect Packet Order received! (" << sequenceNum << " instead of " << nextPacket << ")" << endl;
             }
-
-            outfile.write(charPayload, tracker2-1);
-            delete[] charPayload;
            
             //=======================//
             //Sends ACK to server
             //=======================//
 
             ACKMessage = "ACK|" ;
-            ACKMessage += sequenceNum;
+            ACKMessage += intToString(nextPacket-1);
         
             
             cout << "Sending ACK: " << ACKMessage << endl;

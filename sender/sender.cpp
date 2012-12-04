@@ -115,8 +115,10 @@ vector<char*> extractFileToVector(char* buf)
         file.read (memblock, size);
         file.close();
     }
-    else 
-        cout << "Unable to open file";
+    else {
+        cout << "Unable to open file" << endl;
+        return packetVector;
+    }    
 
     //Read the entire file into packets, one at a time
     while (totalBytesRead < size)
@@ -199,20 +201,21 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr_stor
             {
 
                 //Break if we have finished transmitting
-                if(sequenceNum > packet_vector.size()-1)
+                if(currentAck+1 >= packet_vector.size())
                 {
+                cout << "hello" << endl;
                     break;
                 }
                 packetSize = 2000;
 
                 if((numbytes=
-                    sendto(sockfd, packet_vector[sequenceNum],
+                    sendto(sockfd, packet_vector[currentAck],
                            packetSize, 0, (struct sockaddr *)&their_addr, addr_len)) < 0) 
                 {
                     perror("Send Failed!");
                     exit(1);
                 }
-                cout << "Retransmitting packet " << sequenceNum << endl;
+                cout << "Retransmitting packet " << currentAck << endl;
             }
         } 
 
@@ -285,6 +288,8 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr_stor
             {
                 fileOpened = true;
                 packet_vector = extractFileToVector(buf);
+                if(packet_vector.empty())
+                    break;
             }
 
             //=======================//
@@ -292,20 +297,10 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr_stor
             //=======================//
             
              
-            //FINACK Packet
             if(currentAck+1 >= packet_vector.size())
             {
             
                 break;
-            /*
-                if((numbytes=
-                    sendto(sockfd, packet_vector[sequenceNum], 
-                        packetSize, 0, (struct sockaddr *)&their_addr, addr_len)) < 0) 
-                {
-                    perror("Send Failed!");
-                    exit(1);
-                }
-            */
             }
                
 

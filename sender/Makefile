@@ -1,19 +1,10 @@
-CC=g++
-CFLAGS=-c -Wall
-LDFLAGS=
-SOURCES=sender.cpp 
-OBJECTS=$(SOURCES:.cpp=.o)
-EXECUTABLE=sender
+all:
+	g++ -c -Wall sender.cpp -o sender.o;
+	g++ sender.o -o sender;
+	g++ -c -Wall receiver.cpp -o receiver.o;
+	g++ receiver.o -o receiver;
 
-all: $(SOURCES) $(EXECUTABLE)
-	
-$(EXECUTABLE): $(OBJECTS) 
-	$(CC) $(LDFLAGS) $(OBJECTS) -o $@
-
-.cpp.o:
-	$(CC) $(CFLAGS) $< -o $@
-clean: 
-	rm -rf *.o sender *~
-
+clean:
+	rm -rf *.o sender receiver *~;
 
 

@@ -35,10 +35,10 @@ void timeInit(timeval *timeout, int sec, int milliSec)
 }
 
 
-void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr **ai_addr, ofstream &outfile, int Plost, int Pcorrupt)
+void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr **ai_addr, ofstream &outfile, int Plost, int Pcorrupt, char* fileName)
 {
     int maxfdp, result;
-    int const SERVER_TIME_OUT = 2;     //Timeout after 3 secondsZ
+    int const SERVER_TIME_OUT = 3;     //Timeout after 3 secondsZ
     int numbytes;
     fd_set rset;
     string sequenceNum = "0";
@@ -59,7 +59,7 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr **ai
         //Initialize file_descriptors
         FD_ZERO(&rset);
         FD_SET(sockfd, &rset);
-        timeInit(&timeout, SERVER_TIME_OUT, 900);   //999 is HACK TO FIX race condition between server and client
+        timeInit(&timeout, SERVER_TIME_OUT, 0);  
 
         maxfdp = sockfd + 1;    //For compatibility issues...
         if ((result = select(maxfdp, &rset, NULL, NULL, &timeout) )< 0)
@@ -69,28 +69,22 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr **ai
         }
         if (result == 0)
         {
-            
-            ACKMessage = "ACK|" ;
-            ACKMessage += intToString(nextPacket-1);
-        
-            cout << "CLIENT TIMEOUT!" << endl;
-            time_t t = time(0);  // t is an integer type
-            cout << "Current Time: " << t << endl;
-            
-            cout << "Sending ACK after client timeout: " << ACKMessage << endl;
+            ai_addrlen = sizeof(**ai_addr);
+            if(nextPacket == 0)
+            {
+                
+                cout << "CLIENT TIMEOUT!" << endl;
+                time_t t = time(0);  // t is an integer type
+                cout << "Current Time: " << t << endl;
+                
+                cout << "Sending packet after client timeout: " << fileName << endl;
 
-           if(atoi(lastPacket.c_str()) == 1)
-            {
-            
-            cout << "closing client..." << endl;
-                outfile.close();
-                break;
-            }
-            if ((numbytes = sendto(sockfd, ACKMessage.c_str(), strlen(ACKMessage.c_str()), 0, *ai_addr,
-                           ai_addrlen)) == -1) 
-            {
-                perror("Failed to send to ");
-                exit(1);
+                if ((numbytes = sendto(sockfd, "a.txt", strlen("a.txt"), 0, *ai_addr, ai_addrlen)) == -1) 
+                {
+                    cout << errno << endl;
+                    perror("Failed to send to ");
+                    exit(1);
+                }            
             }
                  
         } 
@@ -176,7 +170,6 @@ void waitToRead(int sockfd, char* buf, int const MAXBUFLEN, struct sockaddr **ai
                 }
                 outfile.write(charPayload, tracker2-1);
                 delete[] charPayload;
-                cout << "incrementing nextPacket" << endl;
                 nextPacket++;
             } else {
                 cout << "Incorrect Packet Order received! (" << sequenceNum << " instead of " << nextPacket << ")" << endl;
@@ -312,7 +305,7 @@ int main(int argc, char *argv[])
     cout << "Waiting to receive from server..." << endl;
 
     //waitToRead(sockfd, buf, MAXBUFLEN, &(p->ai_addr), p->ai_addrlen, outfile);
-    waitToRead(sockfd, buf, MAXBUFLEN, &(p->ai_addr), outfile, Plost, Pcorrupt);
+    waitToRead(sockfd, buf, MAXBUFLEN, &(p->ai_addr), outfile, Plost, Pcorrupt, argv[3]);
     //**
 
 

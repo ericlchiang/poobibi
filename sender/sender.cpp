@@ -414,7 +414,6 @@ int main(int argc, char *argv[])
         return 2;
     }
 
-cout << "Plost corrupt: " << Plost << "  " << Pcorrupt << endl;
     waitToRead(sockfd, buf, MAXBUFLEN, their_addr, cwnd, Plost, Pcorrupt);
     freeaddrinfo(servinfo);
 
